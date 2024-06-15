@@ -43,13 +43,13 @@ pub fn parse_from_input(text: &str, sort: IOSort) -> anyhow::Result<Vec<UciOptio
 
 fn main() -> anyhow::Result<()> {
     // let url = "https://chess.swehosting.se/tune/7126/";
-    let url = std::env::args().nth(1).with_context(|| "No URL argument provided.")?;
-    println!("fetching {url}");
+    let url = std::env::args().nth(1).with_context(|| "NO URL ARGUMENT PROVIDED")?;
+    println!("FETCHING {url}");
 
     let response = minreq::get(url).send()?;
     let text = response.as_str()?;
-    assert!(text.contains("</html>"));
-    assert_eq!(200, response.status_code);
+    anyhow::ensure!(text.contains("</html>"), "HTML CLOSING TAG NOT FOUND IN TEXT");
+    anyhow::ensure!(200 == response.status_code, "RESPONSE 200 OK NOT FOUND: {}", response.status_code);
 
     let (_, rest) = text.split_once("spsa-input").with_context(|| "Did not find \"spsa-input\" in page.")?;
     let (_, rest) = rest.split_once('>').with_context(|| "Did not find end of tag after \"spsa-input\".")?;
@@ -78,6 +78,10 @@ fn main() -> anyhow::Result<()> {
 
     pairs.sort_by(|(_, ak), (_, bk)| f64::total_cmp(&bk.abs(), &ak.abs()));
 
+    let line_width = 45;
+    println!();
+    println!("OPTION NAME {pad} PERCENT CHANGE", pad = " ".repeat(line_width - 27));
+    println!("{}", "-".repeat(line_width));
     for ((before, after), permill_change) in pairs {
         assert_eq!(before.name, after.name);
         let control = match after.value.total_cmp(&before.value) {
@@ -86,9 +90,10 @@ fn main() -> anyhow::Result<()> {
             Ordering::Greater => CONTROL_GREEN,
         };
         println!(
-            "{:28} : {control}{:+6.1}{CONTROL_RESET}%",
+            "{} {pad} {control}{:+06.1}{CONTROL_RESET}%",
             before.name,
             permill_change * 100.0,
+            pad = ".".repeat((line_width - 9).saturating_sub(before.name.len())),
         );
     }
 
