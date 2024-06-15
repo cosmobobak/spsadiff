@@ -43,20 +43,41 @@ pub fn parse_from_input(text: &str, sort: IOSort) -> anyhow::Result<Vec<UciOptio
 
 fn main() -> anyhow::Result<()> {
     // let url = "https://chess.swehosting.se/tune/7126/";
-    let url = std::env::args().nth(1).with_context(|| "NO URL ARGUMENT PROVIDED")?;
+    let url = std::env::args()
+        .nth(1)
+        .with_context(|| "NO URL ARGUMENT PROVIDED")?;
     println!("FETCHING {url}");
 
     let response = minreq::get(url).send()?;
     let text = response.as_str()?;
-    anyhow::ensure!(text.contains("</html>"), "HTML CLOSING TAG NOT FOUND IN TEXT");
-    anyhow::ensure!(200 == response.status_code, "RESPONSE 200 OK NOT FOUND: {}", response.status_code);
+    anyhow::ensure!(
+        text.contains("</html>"),
+        "HTML CLOSING TAG NOT FOUND IN TEXT"
+    );
+    anyhow::ensure!(
+        200 == response.status_code,
+        "RESPONSE 200 OK NOT FOUND: {}",
+        response.status_code
+    );
 
-    let (_, rest) = text.split_once("spsa-input").with_context(|| "Did not find \"spsa-input\" in page.")?;
-    let (_, rest) = rest.split_once('>').with_context(|| "Did not find end of tag after \"spsa-input\".")?;
-    let (input, rest) = rest.split_once('<').with_context(|| "Did not find start of tag after SPSA input data.")?;
-    let (_, rest) = rest.split_once("spsa-output").with_context(|| "Did not find \"spsa-output\" in page.")?;
-    let (_, rest) = rest.split_once('>').with_context(|| "Did not find end of tag after \"spsa-output\".")?;
-    let (output, _) = rest.split_once('<').with_context(|| "Did not find start of tag after SPSA output data.")?;
+    let (_, rest) = text
+        .split_once("spsa-input")
+        .with_context(|| "Did not find \"spsa-input\" in page.")?;
+    let (_, rest) = rest
+        .split_once('>')
+        .with_context(|| "Did not find end of tag after \"spsa-input\".")?;
+    let (input, rest) = rest
+        .split_once('<')
+        .with_context(|| "Did not find start of tag after SPSA input data.")?;
+    let (_, rest) = rest
+        .split_once("spsa-output")
+        .with_context(|| "Did not find \"spsa-output\" in page.")?;
+    let (_, rest) = rest
+        .split_once('>')
+        .with_context(|| "Did not find end of tag after \"spsa-output\".")?;
+    let (output, _) = rest
+        .split_once('<')
+        .with_context(|| "Did not find start of tag after SPSA output data.")?;
 
     // let input = include_str!("../input.txt");
     // let output = include_str!("../output.txt");
@@ -80,9 +101,12 @@ fn main() -> anyhow::Result<()> {
 
     let line_width = 45;
     println!();
-    println!("OPTION NAME {pad} PERCENT CHANGE", pad = " ".repeat(line_width - 27));
+    println!(
+        "OPTION NAME {pad} PERCENT CHANGE",
+        pad = " ".repeat(line_width - 27)
+    );
     println!("{}", "-".repeat(line_width));
-    for ((before, after), permill_change) in pairs {
+    for ((before, after), c) in pairs {
         assert_eq!(before.name, after.name);
         let control = match after.value.total_cmp(&before.value) {
             Ordering::Less => CONTROL_RED,
@@ -90,10 +114,13 @@ fn main() -> anyhow::Result<()> {
             Ordering::Greater => CONTROL_GREEN,
         };
         println!(
-            "{} {pad} {control}{:+06.1}{CONTROL_RESET}%",
+            "{} {pad} {control}{:+.1}{CONTROL_RESET}%",
             before.name,
-            permill_change * 100.0,
-            pad = ".".repeat((line_width - 9).saturating_sub(before.name.len())),
+            c * 100.0,
+            pad = ".".repeat(
+                (line_width - 9 + usize::from(c.abs() < 0.1) + usize::from(c.abs() < 1.0))
+                    .saturating_sub(before.name.len())
+            ),
         );
     }
 
