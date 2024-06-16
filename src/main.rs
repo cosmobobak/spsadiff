@@ -88,11 +88,12 @@ fn main() -> anyhow::Result<()> {
         .into_iter()
         .zip(output)
         .map(|p| {
-            if p.0.value == 0.0 {
+            let denom = f64::abs((p.0.value + p.1.value) / 2.0);
+            if denom == 0.0 {
                 return (p, 0.0);
             }
             let diff = p.1.value - p.0.value;
-            let frac = diff / p.0.value.abs();
+            let frac = diff / denom;
             (p, frac)
         })
         .collect::<Vec<_>>();
