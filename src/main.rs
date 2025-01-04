@@ -11,12 +11,20 @@ const CONTROL_RESET: &str = "\u{001b}[0m";
 pub struct UciOption {
     name: String,
     value: f64,
+    min: Option<f64>,
+    max: Option<f64>,
+    step: Option<f64>,
 }
 
 pub enum IOSort {
     Input,
     Output,
 }
+
+// example output:
+// RFP_MARGIN, 73
+// example input:
+// RFP_MARGIN, int, 73.0, 40.0, 200.0, 10.0, 0.002
 
 pub fn parse_from_input(text: &str, sort: IOSort) -> anyhow::Result<Vec<UciOption>> {
     text.lines()
@@ -33,9 +41,15 @@ pub fn parse_from_input(text: &str, sort: IOSort) -> anyhow::Result<Vec<UciOptio
             let val = parts
                 .nth(val_index)
                 .with_context(|| format!("No value part in line {i}: \"{}\"", l))?;
+            let min = parts.next().and_then(|s| s.parse().ok());
+            let max = parts.next().and_then(|s| s.parse().ok());
+            let step = parts.next().and_then(|s| s.parse().ok());
             Ok(UciOption {
                 name: name.to_string(),
                 value: val.parse()?,
+                min,
+                max,
+                step,
             })
         })
         .collect()
@@ -88,12 +102,9 @@ fn main() -> anyhow::Result<()> {
         .into_iter()
         .zip(output)
         .map(|p| {
-            let denom = f64::abs((p.0.value + p.1.value) / 2.0);
-            if denom == 0.0 {
-                return (p, 0.0);
-            }
+            let range = p.0.max.unwrap_or(f64::INFINITY) - p.0.min.unwrap_or(f64::NEG_INFINITY);
             let diff = p.1.value - p.0.value;
-            let frac = diff / denom;
+            let frac = diff / range;
             (p, frac)
         })
         .collect::<Vec<_>>();
@@ -103,11 +114,11 @@ fn main() -> anyhow::Result<()> {
     let line_width = 45;
     println!();
     println!(
-        "OPTION NAME {pad} PERCENT CHANGE",
-        pad = " ".repeat(line_width - 27)
+        "OPTION NAME {pad} CHANGE",
+        pad = " ".repeat(line_width - 20)
     );
-    println!("{}", "-".repeat(line_width));
-    for ((before, after), c) in pairs {
+    println!("{}", "-".repeat(line_width + 5));
+    for ((before, after), _) in pairs {
         assert_eq!(before.name, after.name);
         let control = match after.value.total_cmp(&before.value) {
             Ordering::Less => CONTROL_RED,
@@ -115,13 +126,13 @@ fn main() -> anyhow::Result<()> {
             Ordering::Greater => CONTROL_GREEN,
         };
         println!(
-            "{} {pad} {control}{:+.1}{CONTROL_RESET}%",
+            "{} {pad} {before} -> {control}{after}{CONTROL_RESET} {tail}",
             before.name,
-            c * 100.0,
-            pad = ".".repeat(
-                (line_width - 9 + usize::from(c.abs() < 0.1) + usize::from(c.abs() < 1.0))
-                    .saturating_sub(before.name.len())
+            pad = ".".repeat(36usize.saturating_sub(before.name.len() + before.value.abs().log10() as usize + usize::from(before.value < 0.0))
             ),
+            before = before.value,
+            after = after.value,
+            tail = ".".repeat(5usize.saturating_sub(after.value.abs().log10() as usize + usize::from(after.value < 0.0)))
         );
     }
 
@@ -155,27 +166,45 @@ HISTORY_PRUNING_MARGIN, -2474";
             vec![
                 UciOption {
                     name: "ASPIRATION_WINDOW".into(),
-                    value: 6.0
+                    value: 6.0,
+                    min: Some(1.0),
+                    max: Some(50.0),
+                    step: Some(3.0),
                 },
                 UciOption {
                     name: "RFP_MARGIN".into(),
-                    value: 73.0
+                    value: 73.0,
+                    min: Some(40.0),
+                    max: Some(200.0),
+                    step: Some(10.0),
                 },
                 UciOption {
                     name: "RFP_IMPROVING_MARGIN".into(),
-                    value: 58.0
+                    value: 58.0,
+                    min: Some(30.0),
+                    max: Some(150.0),
+                    step: Some(10.0),
                 },
                 UciOption {
                     name: "DO_DEEPER_DEPTH_MARGIN".into(),
-                    value: 11.0
+                    value: 11.0,
+                    min: Some(1.0),
+                    max: Some(50.0),
+                    step: Some(2.0),
                 },
                 UciOption {
                     name: "HISTORY_PRUNING_DEPTH".into(),
-                    value: 7.0
+                    value: 7.0,
+                    min: Some(2.0),
+                    max: Some(14.0),
+                    step: Some(1.0),
                 },
                 UciOption {
                     name: "HISTORY_PRUNING_MARGIN".into(),
-                    value: -2500.0
+                    value: -2500.0,
+                    min: Some(-5000.0),
+                    max: Some(1000.0),
+                    step: Some(500.0),
                 },
             ]
         );
@@ -187,27 +216,45 @@ HISTORY_PRUNING_MARGIN, -2474";
             vec![
                 UciOption {
                     name: "ASPIRATION_WINDOW".into(),
-                    value: 5.0
+                    value: 5.0,
+                    min: None,
+                    max: None,
+                    step: None,
                 },
                 UciOption {
                     name: "RFP_MARGIN".into(),
-                    value: 73.0
+                    value: 73.0,
+                    min: None,
+                    max: None,
+                    step: None,
                 },
                 UciOption {
                     name: "RFP_IMPROVING_MARGIN".into(),
-                    value: 58.0
+                    value: 58.0,
+                    min: None,
+                    max: None,
+                    step: None,
                 },
                 UciOption {
                     name: "DO_DEEPER_DEPTH_MARGIN".into(),
-                    value: 11.0
+                    value: 11.0,
+                    min: None,
+                    max: None,
+                    step: None,
                 },
                 UciOption {
                     name: "HISTORY_PRUNING_DEPTH".into(),
-                    value: 7.0
+                    value: 7.0,
+                    min: None,
+                    max: None,
+                    step: None,
                 },
                 UciOption {
                     name: "HISTORY_PRUNING_MARGIN".into(),
-                    value: -2474.0
+                    value: -2474.0,
+                    min: None,
+                    max: None,
+                    step: None,
                 },
             ]
         );
